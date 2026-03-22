@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "308662542494",
+    "project_id": "basal-123",
+    "storage_bucket": "basal-123.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308662542494:android:8146616ac8d3084f2b5b8f",
+        "android_client_info": {
+          "package_name": "com.example.basal"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "308662542494-gjs9eotoa390ps72jajn7834gsq6p6j8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYihiZP5LROvXVCnKGkD3na7_HltH3cJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "308662542494-gjs9eotoa390ps72jajn7834gsq6p6j8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "308662542494-qb8ve0ekn1o5sia59t5i9j3f65ih1arp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.basal"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
