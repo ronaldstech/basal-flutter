@@ -6,9 +6,11 @@ import '../providers/audio_provider.dart';
 import '../providers/firestore_provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/download_modal.dart';
 import '../widgets/song_options_modal.dart';
 import '../widgets/skeleton_image.dart';
 import '../widgets/home_skeleton.dart';
+
 
 class AlbumDetailView extends ConsumerStatefulWidget {
   final Album album;
@@ -27,18 +29,164 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _scrollController.addListener(() {
-      final shouldShow = _scrollController.offset > 220;
-      if (shouldShow != _showTitle) {
-        setState(() => _showTitle = shouldShow);
-      }
-    });
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.offset > 240 && !_showTitle) {
+      setState(() => _showTitle = true);
+    } else if (_scrollController.offset <= 240 && _showTitle) {
+      setState(() => _showTitle = false);
+    }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Widget _buildAction(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+      Color? iconColor}) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ActionChip(
+        avatar: Icon(icon, color: iconColor ?? Colors.white, size: 16),
+        label: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600)),
+        backgroundColor: Colors.white.withOpacity(0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: BorderSide.none,
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  void _showDownloadModal(BuildContext context, List<Song> songs) {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DownloadModal(songs: songs);
+      },
+    );
+  }
+
+  void _showAlbumOptions(
+      BuildContext context, List<Song> albumSongs, bool isSaved) {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Iconsax.share, color: Colors.white),
+                title:
+                    const Text('Share', style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Iconsax.import, color: Colors.white),
+                title: Row(
+                  children: [
+                    const Text('Download',
+                        style: TextStyle(color: Colors.white)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('PREMIUM',
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  final isPremium = ref.read(isPremiumProvider);
+                  if (isPremium) {
+                    if (albumSongs.isNotEmpty) {
+                      _showDownloadModal(context, albumSongs);
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Downloads are for Premium members only'),
+                        backgroundColor: AppTheme.primaryColor,
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                    isSaved ? Iconsax.tick_circle5 : Iconsax.add_circle,
+                    color: Colors.white),
+                title: Text(isSaved ? 'Remove from library' : 'Add to library',
+                    style: const TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(firestoreServiceProvider)
+                      .updateAlbumLibrary(widget.album.id, !isSaved);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isSaved ? 'Removed from Library' : 'Added to Library',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      duration: const Duration(seconds: 2),
+                      backgroundColor: Colors.grey[900],
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Iconsax.flag, color: Colors.white),
+                title:
+                    const Text('Report', style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(context),
+              ),
+              const SafeArea(child: SizedBox(height: 16)),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -53,6 +201,9 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
           orElse: () => widget.album,
         ) ??
         widget.album;
+
+    final libraryAlbumIds = ref.watch(userLibraryAlbumIdsProvider).valueOrNull ?? [];
+    final isSaved = libraryAlbumIds.contains(currentAlbum.id);
 
     final allSongs = songsAsync.valueOrNull ?? [];
     final albumSongs = currentAlbum.songIds
@@ -123,15 +274,22 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
                         Text(
                           currentAlbum.title,
                           style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                                fontSize: 30,
+                                fontSize: 32,
                                 fontWeight: FontWeight.bold,
                               ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Text(
-                          currentAlbum.artist,
+                          'Album • ${currentAlbum.artist}',
                           style: const TextStyle(color: Colors.white70, fontSize: 15),
                         ),
+                        if (currentAlbum.createdBy.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Uploaded by ${currentAlbum.createdBy}',
+                            style: const TextStyle(color: Colors.white38, fontSize: 13),
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Text(
                           '${albumSongs.length} songs',
@@ -146,9 +304,8 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12),
+              padding: const EdgeInsets.all(20.0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
                     onTap: () {
@@ -169,33 +326,78 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      if (albumSongs.isEmpty) return;
-                      final shuffled = List<Song>.from(albumSongs)..shuffle();
-                      ref.read(audioProvider.notifier).playFromSongs(shuffled, shuffled.first);
-                    },
-                    child: const Icon(Iconsax.shuffle, color: Colors.white70, size: 28),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildAction(
+                            context,
+                            icon: isSaved ? Iconsax.tick_circle5 : Iconsax.add_circle,
+                            label: isSaved ? 'Saved' : 'Library',
+                            onTap: () {
+                              ref
+                                  .read(firestoreServiceProvider)
+                                  .updateAlbumLibrary(currentAlbum.id, !isSaved);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isSaved ? 'Removed from Library' : 'Added to Library',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: Colors.grey[900],
+                                ),
+                              );
+                            },
+                          ),
+                          _buildAction(
+                            context,
+                            icon: Iconsax.shuffle,
+                            label: 'Shuffle',
+                            onTap: () {
+                              if (albumSongs.isEmpty) return;
+                              final shuffled = List<Song>.from(albumSongs)..shuffle();
+                              ref.read(audioProvider.notifier).playFromSongs(shuffled, shuffled.first);
+                            },
+                          ),
+                          _buildAction(
+                            context,
+                            icon: Iconsax.import,
+                            label: 'Download',
+                            onTap: () {
+                              final isPremium = ref.read(isPremiumProvider);
+                              if (isPremium) {
+                                if (albumSongs.isNotEmpty) {
+                                  _showDownloadModal(context, albumSongs);
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Downloads are for Premium members only'),
+                                    backgroundColor: AppTheme.primaryColor,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                          _buildAction(
+                            context,
+                            icon: Iconsax.more,
+                            label: 'More',
+                            onTap: () => _showAlbumOptions(context, albumSongs, isSaved),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const Icon(Iconsax.heart, color: Colors.white70, size: 28),
-                  const Icon(Iconsax.more, color: Colors.white70, size: 28),
                 ],
               ),
             ),
           ),
           songsAsync.when(
             data: (allSongs) {
-              final albumSongs = currentAlbum.songIds
-                  .map((id) {
-                    try {
-                      return allSongs.firstWhere((s) => s.id == id);
-                    } catch (_) {
-                      return null;
-                    }
-                  })
-                  .whereType<Song>()
-                  .toList();
-
               if (albumSongs.isEmpty) {
                 return const SliverToBoxAdapter(
                   child: Center(
@@ -221,19 +423,11 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
                       dense: true,
                       visualDensity: VisualDensity.compact,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-                      leading: CircleAvatar(
-                        backgroundColor: isCurrentSong
-                            ? AppTheme.primaryColor.withOpacity(0.2)
-                            : Colors.white12,
-                        radius: 18,
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: isCurrentSong ? AppTheme.primaryColor : Colors.white54,
-                          ),
-                        ),
+                      leading: SkeletonImage(
+                        imageUrl: song.thumbnailUrl,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 4,
                       ),
                       title: Text(
                         song.title,
@@ -294,3 +488,4 @@ class _AlbumDetailViewState extends ConsumerState<AlbumDetailView> {
     );
   }
 }
+

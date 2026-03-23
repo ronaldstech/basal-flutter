@@ -120,6 +120,7 @@ class Album {
   final List<String> songIds;
   final int playCount;
   final DateTime? releaseDate;
+  final String createdBy;
 
   Album({
     required this.id,
@@ -129,18 +130,34 @@ class Album {
     required this.songIds,
     this.playCount = 0,
     this.releaseDate,
+    this.createdBy = '',
   });
 
   factory Album.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    
+    dynamic getField(List<String> variants) {
+      for (var variant in variants) {
+        if (data.containsKey(variant)) return data[variant];
+      }
+      return null;
+    }
+
+    DateTime? parseDate(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+      return null;
+    }
+
     return Album(
       id: doc.id,
-      title: data['title'] ?? '',
-      artist: data['artist'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      songIds: List<String>.from(data['songIds'] ?? []),
-      playCount: data['playCount'] ?? 0,
-      releaseDate: (data['releaseDate'] as Timestamp?)?.toDate(),
+      title: getField(['title', 'Title', 'name']) ?? '',
+      artist: getField(['artist', 'Artist']) ?? '',
+      imageUrl: getField(['imageUrl', 'imageurl', 'thumbnailUrl']) ?? '',
+      songIds: List<String>.from(getField(['songs', 'songIds']) ?? []),
+      playCount: getField(['playCount', 'play_count']) ?? 0,
+      releaseDate: parseDate(getField(['releaseDate', 'release_date', 'createdAt'])),
+      createdBy: getField(['createdBy', 'creator']) ?? '',
     );
   }
 
@@ -149,9 +166,10 @@ class Album {
       'title': title,
       'artist': artist,
       'imageUrl': imageUrl,
-      'songIds': songIds,
+      'songs': songIds,
       'playCount': playCount,
       'releaseDate': releaseDate != null ? Timestamp.fromDate(releaseDate!) : null,
+      'createdBy': createdBy,
     };
   }
 }

@@ -49,6 +49,24 @@ class FirestoreService {
     }
   }
 
+  Future<void> updateAlbumLibrary(String albumId, bool isAdding) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    
+    final docRef = _db.collection('users').doc(uid);
+    
+    if (isAdding) {
+      await docRef.set({
+        'libraryAlbums': FieldValue.arrayUnion([albumId])
+      }, SetOptions(merge: true));
+    } else {
+      await docRef.set({
+        'libraryAlbums': FieldValue.arrayRemove([albumId])
+      }, SetOptions(merge: true));
+    }
+  }
+
+
   Future<Playlist> createPlaylist(String name, List<String> initialSongIds) async {
     final user = FirebaseAuth.instance.currentUser;
     final uid = user?.uid;
@@ -112,6 +130,18 @@ class FirestoreService {
       return [];
     });
   }
+
+  Stream<List<String>> getUserAlbumLibrary(String? uid) {
+    if (uid == null) return Stream.value([]);
+    
+    return _db.collection('users').doc(uid).snapshots().map((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        return List<String>.from(snapshot.data()!['libraryAlbums'] ?? []);
+      }
+      return [];
+    });
+  }
+
 
   Stream<List<String>> getLikedSongIds(String? uid) {
     if (uid == null) return Stream.value([]);
@@ -435,36 +465,54 @@ class FirestoreService {
     final mockPlaylists = [
       Playlist(
         id: 'top_hits',
-        name: 'Today\'s Top Hits',
+        name: 'Global Top 50',
         imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
-        creatorName: 'Basal',
+        creatorName: 'Basal Charts',
+        creatorUid: 'basal_admin',
+        songIds: [],
+        type: 'chart',
+      ),
+      Playlist(
+        id: 'viral_hits',
+        name: 'Viral 50 - Global',
+        imageUrl: 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=800&q=80',
+        creatorName: 'Basal Charts',
         creatorUid: 'basal_admin',
         songIds: [],
         type: 'chart',
       ),
       Playlist(
         id: 'chill_vibes',
-        name: 'Chill Vibes',
+        name: 'Chill & Relax',
         imageUrl: 'https://images.unsplash.com/photo-1494232410401-ad00d5433cfa?w=800&q=80',
-        creatorName: 'Basal',
+        creatorName: 'Basal Moods',
         creatorUid: 'basal_admin',
         songIds: [],
         type: 'mood',
       ),
       Playlist(
-        id: 'daily_mix_1',
-        name: 'Daily Mix 1',
-        imageUrl: 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?w=800&q=80',
-        creatorName: 'Basal',
+        id: 'energy_boost',
+        name: 'High Energy',
+        imageUrl: 'https://images.unsplash.com/photo-1514525253361-b83a65c952c7?w=800&q=80',
+        creatorName: 'Basal Moods',
         creatorUid: 'basal_admin',
         songIds: [],
-        type: 'madeForYou',
+        type: 'mood',
       ),
       Playlist(
         id: 'deep_focus',
         name: 'Deep Focus',
         imageUrl: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=800&q=80',
-        creatorName: 'Basal',
+        creatorName: 'Basal Moods',
+        creatorUid: 'basal_admin',
+        songIds: [],
+        type: 'mood',
+      ),
+      Playlist(
+        id: 'party_mix',
+        name: 'Party Time',
+        imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80',
+        creatorName: 'Basal Moods',
         creatorUid: 'basal_admin',
         songIds: [],
         type: 'mood',
@@ -473,7 +521,16 @@ class FirestoreService {
         id: 'tech_talks',
         name: 'Tech Talks Podcast',
         imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800&q=80',
-        creatorName: 'Basal Podcasts',
+        creatorName: 'Elon Musk',
+        creatorUid: 'basal_admin',
+        songIds: [],
+        type: 'podcast',
+      ),
+      Playlist(
+        id: 'crime_stories',
+        name: 'True Crime Daily',
+        imageUrl: 'https://images.unsplash.com/photo-1453728013993-6d66e9c9123a?w=800&q=80',
+        creatorName: 'Crime Network',
         creatorUid: 'basal_admin',
         songIds: [],
         type: 'podcast',
@@ -483,7 +540,31 @@ class FirestoreService {
       playlistsBatch.set(_db.collection('playlists').doc(playlist.id), playlist.toFirestore());
     }
     await playlistsBatch.commit();
+
+    final bannersBatch = _db.batch();
+    final mockBanners = [
+      {
+        'id': 'banner_1',
+        'title': 'New Hits Out Now',
+        'imageUrl': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&q=80',
+      },
+      {
+        'id': 'banner_2',
+        'title': 'Chill Weekend Vibes',
+        'imageUrl': 'https://images.unsplash.com/photo-1494232410401-ad00d5433cfa?w=1200&q=80',
+      },
+      {
+        'id': 'banner_3',
+        'title': 'Focus & Productivity',
+        'imageUrl': 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=1200&q=80',
+      },
+    ];
+    for (var banner in mockBanners) {
+      bannersBatch.set(_db.collection('banners').doc(banner['id'] as String), banner);
+    }
+    await bannersBatch.commit();
   }
+
 }
 
 final firestoreServiceProvider = Provider((ref) => FirestoreService());
@@ -514,6 +595,12 @@ final userLibraryIdsProvider = StreamProvider<List<String>>((ref) {
   final uid = ref.watch(authStateProvider).value?.uid;
   return ref.watch(firestoreServiceProvider).getUserLibrary(uid);
 });
+
+final userLibraryAlbumIdsProvider = StreamProvider<List<String>>((ref) {
+  final uid = ref.watch(authStateProvider).value?.uid;
+  return ref.watch(firestoreServiceProvider).getUserAlbumLibrary(uid);
+});
+
 
 final likedSongIdsProvider = StreamProvider<List<String>>((ref) {
   final uid = ref.watch(authStateProvider).value?.uid;
@@ -633,8 +720,8 @@ final topArtistsProvider = Provider<AsyncValue<List<Artist>>>((ref) {
 
   final sortedArtists = allArtists.toList();
   sortedArtists.sort((a, b) {
-    final aPlays = allSongs.where((s) => a.songIds.contains(s.id)).fold(0, (sum, s) => sum + s.playCount);
-    final bPlays = allSongs.where((s) => b.songIds.contains(s.id)).fold(0, (sum, s) => sum + s.playCount);
+    final aPlays = allSongs.where((s) => a.songIds.contains(s.id)).fold(0, (acc, s) => acc + s.playCount);
+    final bPlays = allSongs.where((s) => b.songIds.contains(s.id)).fold(0, (acc, s) => acc + s.playCount);
     return bPlays.compareTo(aPlays);
   });
 

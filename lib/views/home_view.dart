@@ -13,6 +13,9 @@ import '../widgets/skeleton_image.dart';
 import 'package:iconsax/iconsax.dart';
 import '../models/music_models.dart';
 import '../widgets/banners_carousel.dart';
+import '../widgets/mood_mix_card.dart';
+import '../widgets/chart_playlist_card.dart';
+import '../widgets/podcast_card.dart';
 
 class HomeView extends ConsumerWidget {
   const HomeView({super.key});
@@ -40,6 +43,26 @@ class HomeView extends ConsumerWidget {
               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
             ),
             actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: IconButton(
+                  icon: const Icon(Iconsax.refresh, size: 20),
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Syncing mock data...')),
+                    );
+                    await ref
+                        .read(firestoreServiceProvider)
+                        .populateWithMockData();
+                    messenger.showSnackBar(
+                      const SnackBar(
+                          content: Text('Data synced successfully!')),
+                    );
+                  },
+
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
                 child: Builder(builder: (context) {
@@ -126,8 +149,9 @@ class HomeView extends ConsumerWidget {
                   userPlaylistsAsync.when(
                     data: (playlists) {
                       final displayPlaylists = playlists.take(6).toList();
-                      if (displayPlaylists.isEmpty)
+                      if (displayPlaylists.isEmpty) {
                         return const SizedBox.shrink();
+                      }
 
                       return GridView.builder(
                         shrinkWrap: true,
@@ -469,10 +493,12 @@ class HomeView extends ConsumerWidget {
 
                   // Mood Mixes Section
                   _buildSectionTitle(context, 'Mood Mixes'),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 4),
                   ref.watch(moodMixesProvider).when(
-                        data: (playlists) =>
-                            _buildPlaylistHorizontal(context, playlists),
+                        data: (playlists) => playlists.isEmpty
+                            ? _buildEmptyState(ref, 'No Mood Mixes',
+                                'Sync to get personalized vibes.')
+                            : _buildMoodMixGrid(context, playlists),
                         loading: () => const HorizontalScrollSkeleton(
                             height: 180, width: 140),
                         error: (e, st) => const SizedBox.shrink(),
@@ -484,8 +510,10 @@ class HomeView extends ConsumerWidget {
                   _buildSectionTitle(context, 'Top Charts'),
                   const SizedBox(height: 16),
                   ref.watch(topChartsProvider).when(
-                        data: (playlists) =>
-                            _buildPlaylistHorizontal(context, playlists),
+                        data: (playlists) => playlists.isEmpty
+                            ? _buildEmptyState(ref, 'No Charts',
+                                'Sync to see what\'s trending.')
+                            : _buildChartHorizontal(context, playlists),
                         loading: () => const HorizontalScrollSkeleton(
                             height: 180, width: 140),
                         error: (e, st) => const SizedBox.shrink(),
@@ -496,9 +524,10 @@ class HomeView extends ConsumerWidget {
                   _buildSectionTitle(context, 'Podcast Highlights'),
                   const SizedBox(height: 16),
                   ref.watch(podcastProvider).when(
-                        data: (podcasts) => _buildPlaylistHorizontal(
-                            context, podcasts,
-                            isPodcast: true),
+                        data: (podcasts) => podcasts.isEmpty
+                            ? _buildEmptyState(ref, 'No Podcasts',
+                                'Sync to discover top highlights.')
+                            : _buildPodcastHorizontal(context, podcasts),
                         loading: () => const HorizontalScrollSkeleton(
                             height: 180, width: 140),
                         error: (e, st) => const SizedBox.shrink(),
@@ -615,6 +644,53 @@ class HomeView extends ConsumerWidget {
     );
   }
 
+  Widget _buildMoodMixGrid(BuildContext context, List<Playlist> playlists) {
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.3,
+      ),
+      itemCount: playlists.length > 4 ? 4 : playlists.length,
+      itemBuilder: (context, index) {
+        return MoodMixCard(playlist: playlists[index]);
+      },
+    );
+  }
+
+  Widget _buildChartHorizontal(BuildContext context, List<Playlist> playlists) {
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 240,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        itemBuilder: (context, index) {
+          return ChartPlaylistCard(playlist: playlists[index], rank: index + 1);
+        },
+      ),
+    );
+  }
+
+  Widget _buildPodcastHorizontal(
+      BuildContext context, List<Playlist> playlists) {
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 280,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        itemBuilder: (context, index) {
+          return PodcastCard(playlist: playlists[index]);
+        },
+      ),
+    );
+  }
+
   Widget _buildPlaylistHorizontal(
       BuildContext context, List<Playlist> playlists,
       {bool isPodcast = false}) {
@@ -676,27 +752,26 @@ class HomeView extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(WidgetRef ref, String message) {
-    return Center(
+  Widget _buildEmptyState(WidgetRef ref, String title, String message) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
       child: Column(
         children: [
-          Text(message, style: const TextStyle(color: Colors.white38)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 12)),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () =>
-                    ref.read(firestoreServiceProvider).populateWithMockData(),
-                child: const Text('Populate Mock'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: () =>
-                    ref.read(firestoreServiceProvider).normalizeSongs(),
-                child: const Text('Normalize Existing'),
-              ),
-            ],
+          ElevatedButton(
+            onPressed: () =>
+                ref.read(firestoreServiceProvider).populateWithMockData(),
+            child: const Text('Populate Data'),
           ),
         ],
       ),

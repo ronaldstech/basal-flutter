@@ -67,6 +67,7 @@ final List<Album> mockAlbums = [
     songIds: ['2'],
     playCount: 20000,
     releaseDate: DateTime(2016, 11, 25),
+    createdBy: 'Basal Staff',
   ),
   Album(
     id: '2',
@@ -74,5 +75,7 @@ final List<Album> mockAlbums = [
     artist: 'M83',
     imageUrl: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=1000&auto=format&fit=crop',
     songIds: ['1'],
+    createdBy: 'Basal Staff',
   ),
+
 ];
